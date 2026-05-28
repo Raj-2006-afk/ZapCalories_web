@@ -34,7 +34,7 @@ app = FastAPI()
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["https://zapcalories.com", "https://www.zapcalories.com", "https://api.zapcalories.com"],
+    allow_origins=["*"],  # Ek baar testing ke liye star karke dekho
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
