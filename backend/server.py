@@ -30,13 +30,11 @@ from fastapi.middleware.cors import CORSMiddleware
 app = FastAPI()
 
 # Yeh wala part update karo:
+app = FastAPI()
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "https://zapcalories.com",
-        "https://www.zapcalories.com",
-        "https://zapcalories-web.vercel.app" # Backup ke liye yeh bhi daal do
-    ],
+    allow_origins=["https://zapcalories.com", "https://www.zapcalories.com", "https://api.zapcalories.com"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
