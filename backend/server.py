@@ -20,6 +20,21 @@ import secrets
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
 
+from fastapi.middleware.cors import CORSMiddleware
+
+from fastapi.middleware.cors import CORSMiddleware
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "https://zapcalories.com", 
+        "https://www.zapcalories.com"
+    ], 
+    allow_credentials=True,
+    allow_methods=["*"], # Sab methods allow karo
+    allow_headers=["*"], # Sab headers allow karo
+)
+
 # MongoDB connection
 mongo_url = os.environ.get('MONGO_URL', 'mongodb://localhost:27017')
 client = AsyncIOMotorClient(mongo_url)
