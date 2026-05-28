@@ -15,7 +15,7 @@ from PIL import Image
 import time
 
 # Backend URL from frontend environment
-BACKEND_URL = "https://foodlens-201.preview.emergentagent.com/api"
+BACKEND_URL = "https://zapcalories.onrender.com/api"
 
 class ZapCaloriesTester:
     def __init__(self):
