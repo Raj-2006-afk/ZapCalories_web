@@ -24,16 +24,25 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from fastapi.middleware.cors import CORSMiddleware
 
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+
+app = FastAPI()
+
+# Yeh wala part update karo:
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
-        "https://zapcalories.com", 
-        "https://www.zapcalories.com"
-    ], 
+        "https://zapcalories.com",
+        "https://www.zapcalories.com",
+        "https://zapcalories-web.vercel.app" # Backup ke liye yeh bhi daal do
+    ],
     allow_credentials=True,
-    allow_methods=["*"], # Sab methods allow karo
-    allow_headers=["*"], # Sab headers allow karo
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
+
+# Baki ka code...
 
 # MongoDB connection
 mongo_url = os.environ.get('MONGO_URL', 'mongodb://localhost:27017')
