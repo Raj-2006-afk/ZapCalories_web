@@ -20,35 +20,34 @@ import secrets
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
 
-from fastapi.middleware.cors import CORSMiddleware
+# Create the main app
+app = FastAPI(title="ZapCalories API")
 
-from fastapi.middleware.cors import CORSMiddleware
+# Define CORS allowed origins. 
+# Note: Using allow_origins=["*"] with allow_credentials=True triggers a Starlette/FastAPI RuntimeError,
+# causing a 500 Internal Server Error. Specifying the exact origins resolves this error.
+origins = [
+    "https://www.zapcalories.com",
+    "https://zapcalories.com",
+    "http://localhost:3000",
+    "http://localhost:5173",
+    "http://127.0.0.1:3000",
+    "http://127.0.0.1:5173",
+]
 
-from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware
-
-app = FastAPI()
-
-# Yeh wala part update karo:
-app = FastAPI()
-
+# Configure CORS Middleware immediately after app instantiation to intercept all pre-flight and routing requests.
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Ek baar testing ke liye star karke dekho
+    allow_origins=origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# Baki ka code...
-
 # MongoDB connection
 mongo_url = os.environ.get('MONGO_URL', 'mongodb://localhost:27017')
 client = AsyncIOMotorClient(mongo_url)
 db = client[os.environ.get('DB_NAME', 'zap_calories')]
-
-# Create the main app
-app = FastAPI(title="ZapCalories API")
 
 # Create a router with the /api prefix
 api_router = APIRouter(prefix="/api")

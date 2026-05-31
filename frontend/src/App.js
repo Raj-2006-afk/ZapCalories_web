@@ -324,6 +324,24 @@ const AuthScreen = ({ onSuccess }) => {
               required
               minLength={6}
             />
+            {isLogin && (
+              <div style={{ marginTop: '8px', textAlign: 'right' }}>
+                <a 
+                  href="/forgot-password" 
+                  style={{ 
+                    fontSize: '13px', 
+                    color: 'var(--brand-primary)', 
+                    textDecoration: 'none', 
+                    fontWeight: '600',
+                    transition: 'opacity 0.2s'
+                  }}
+                  onMouseOver={(e) => e.target.style.opacity = '0.8'}
+                  onMouseOut={(e) => e.target.style.opacity = '1'}
+                >
+                  Forgot Password?
+                </a>
+              </div>
+            )}
           </div>
 
           {error && <div className="error-message">{error}</div>}
