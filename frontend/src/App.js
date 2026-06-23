@@ -532,6 +532,7 @@ const Scanner = ({ onFoodAnalyzed, onBack, subscriptionStatus }) => {
   const [isCapturing, setIsCapturing] = useState(false);
   const [capturedImage, setCapturedImage] = useState(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [isSavingLog, setIsSavingLog] = useState(false);
   const [analysisResult, setAnalysisResult] = useState(null);
   const [error, setError] = useState(null);
   const [facingMode, setFacingMode] = useState('environment');
@@ -554,7 +555,7 @@ const Scanner = ({ onFoodAnalyzed, onBack, subscriptionStatus }) => {
     setIsCapturing(false);
   }, []);
 
-  const startCamera = useCallback(async () => {
+  const startCamera = useCallback(async (modeToUse = facingMode) => {
     if (!canScan) {
       setError('Scan limit reached. Please upgrade to continue.');
       return;
@@ -565,7 +566,7 @@ const Scanner = ({ onFoodAnalyzed, onBack, subscriptionStatus }) => {
         streamRef.current.getTracks().forEach(track => track.stop());
       }
       const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode, width: { ideal: 1280 }, height: { ideal: 720 } }
+        video: { facingMode: modeToUse, width: { ideal: 1280 }, height: { ideal: 720 } }
       });
       streamRef.current = stream;
       if (videoRef.current) {
@@ -593,7 +594,7 @@ const Scanner = ({ onFoodAnalyzed, onBack, subscriptionStatus }) => {
     setFacingMode(newMode);
     if (isCapturing) {
       stopCamera();
-      setTimeout(() => startCamera(), 100);
+      setTimeout(() => startCamera(newMode), 100);
     }
   };
 
@@ -641,7 +642,8 @@ const Scanner = ({ onFoodAnalyzed, onBack, subscriptionStatus }) => {
   };
 
   const saveToLog = async () => {
-    if (!analysisResult) return;
+    if (!analysisResult || isSavingLog) return;
+    setIsSavingLog(true);
     try {
       await axios.post(`${API}/food-log`, {
         food_name: analysisResult.food_name,
@@ -656,6 +658,7 @@ const Scanner = ({ onFoodAnalyzed, onBack, subscriptionStatus }) => {
       onFoodAnalyzed();
     } catch (err) {
       setError('Failed to save. Please try again.');
+      setIsSavingLog(false);
     }
   };
 
@@ -663,6 +666,7 @@ const Scanner = ({ onFoodAnalyzed, onBack, subscriptionStatus }) => {
     setCapturedImage(null);
     setAnalysisResult(null);
     setError(null);
+    setIsSavingLog(false);
   };
 
   return (
@@ -771,7 +775,9 @@ const Scanner = ({ onFoodAnalyzed, onBack, subscriptionStatus }) => {
 
               <div className="result-actions">
                 <button className="btn-secondary" onClick={resetScanner}>Scan Again</button>
-                <button className="btn-primary" onClick={saveToLog}>Add to Log</button>
+                <button className="btn-primary" onClick={saveToLog} disabled={isSavingLog}>
+                  {isSavingLog ? 'Saving...' : 'Add to Log'}
+                </button>
               </div>
             </div>
           )}
@@ -1317,9 +1323,10 @@ function AppContent() {
   const handleDeleteLog = async (logId) => {
     try {
       await axios.delete(`${API}/food-log/${logId}`);
+      alert('Food log deleted successfully.');
       fetchData();
     } catch (err) {
-      console.error('Delete error:', err);
+      alert(err.response?.data?.detail || 'Failed to delete food log.');
     }
   };
 

@@ -300,7 +300,21 @@ class ShareMealRequest(BaseModel):
     log_id: str
     message: Optional[str] = None
 
+class WeightLogRequest(BaseModel):
+    weight: float
+
 # ==================== HELPER FUNCTIONS ====================
+
+def parse_ai_json_response(response: str) -> dict:
+    clean_response = response.strip()
+    if clean_response.startswith('```'):
+        parts = clean_response.split('```')
+        if len(parts) >= 2:
+            clean_response = parts[1]
+            if clean_response.startswith('json'):
+                clean_response = clean_response[4:]
+    clean_response = clean_response.strip()
+    return json.loads(clean_response)
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
     return pwd_context.verify(plain_password, hashed_password)
@@ -535,16 +549,7 @@ Respond ONLY with valid JSON:
         response = await chat.send_message(user_message)
         logger.info(f"AI Response: {response}")
         
-        clean_response = response.strip()
-        if clean_response.startswith('```'):
-            parts = clean_response.split('```')
-            if len(parts) >= 2:
-                clean_response = parts[1]
-                if clean_response.startswith('json'):
-                    clean_response = clean_response[4:]
-        clean_response = clean_response.strip()
-        
-        data = json.loads(clean_response)
+        data = parse_ai_json_response(response)
         
         return FoodAnalysis(
             food_name=data.get('food_name', 'Unknown Food'),
@@ -598,16 +603,7 @@ Respond with JSON array:
         
         response = await chat.send_message(UserMessage(text=prompt))
         
-        clean_response = response.strip()
-        if clean_response.startswith('```'):
-            parts = clean_response.split('```')
-            if len(parts) >= 2:
-                clean_response = parts[1]
-                if clean_response.startswith('json'):
-                    clean_response = clean_response[4:]
-        clean_response = clean_response.strip()
-        
-        data = json.loads(clean_response)
+        data = parse_ai_json_response(response)
         return [MealSuggestion(**item) for item in data]
     except Exception as e:
         logger.error(f"Meal suggestion failed: {e}")
@@ -817,7 +813,7 @@ async def create_food_log(entry: FoodLogCreate, user: User = Depends(require_aut
     doc = log_entry.model_dump()
     doc['logged_at'] = doc['logged_at'].isoformat()
     
-    if doc.get('image_base64') and len(doc['image_base64']) > 10000:
+    if doc.get('image_base64') and len(doc['image_base64']) > 5000000:
         doc['image_base64'] = None
     
     await db.food_logs.insert_one(doc)
@@ -876,26 +872,61 @@ async def get_daily_progress(user: User = Depends(require_auth), date: Optional[
 
 @api_router.get("/weekly-progress", response_model=List[DailyProgress])
 async def get_weekly_progress(user: User = Depends(require_auth)):
-    progress = []
     today = datetime.now(timezone.utc).date()
+    start_date = today - timedelta(days=6)
     
+    start_iso = datetime.fromisoformat(f"{start_date.isoformat()}T00:00:00+00:00").isoformat()
+    end_iso = datetime.fromisoformat(f"{today.isoformat()}T23:59:59+00:00").isoformat()
+    
+    logs = await db.food_logs.find({
+        "user_id": user.id,
+        "logged_at": {"$gte": start_iso, "$lte": end_iso}
+    }, {"_id": 0}).to_list(1000)
+    
+    # Group by date
+    progress_dict = {}
     for i in range(7):
-        date = (today - timedelta(days=i)).isoformat()
-        day_progress = await get_daily_progress(user=user, date=date)
-        progress.append(day_progress)
+        d = (today - timedelta(days=i)).isoformat()
+        progress_dict[d] = {"total_calories": 0, "total_protein": 0, "total_carbs": 0, "total_fat": 0, "meal_count": 0}
+        
+    for log in logs:
+        if isinstance(log.get('logged_at'), str):
+            log_date = datetime.fromisoformat(log['logged_at']).date().isoformat()
+        else:
+            log_date = log['logged_at'].date().isoformat()
+            
+        if log_date in progress_dict:
+            progress_dict[log_date]["total_calories"] += log.get('calories', 0)
+            progress_dict[log_date]["total_protein"] += log.get('protein', 0)
+            progress_dict[log_date]["total_carbs"] += log.get('carbs', 0)
+            progress_dict[log_date]["total_fat"] += log.get('fat', 0)
+            progress_dict[log_date]["meal_count"] += 1
+            
+    progress = []
+    for i in range(7):
+        d = (today - timedelta(days=i)).isoformat()
+        p = progress_dict[d]
+        progress.append(DailyProgress(
+            date=d,
+            total_calories=round(p["total_calories"], 1),
+            total_protein=round(p["total_protein"], 1),
+            total_carbs=round(p["total_carbs"], 1),
+            total_fat=round(p["total_fat"], 1),
+            meal_count=p["meal_count"]
+        ))
     
     return progress
 
 # ==================== WEIGHT ====================
 
 @api_router.post("/weight", response_model=WeightEntry)
-async def log_weight(weight: float, user: User = Depends(require_auth)):
-    entry = WeightEntry(user_id=user.id, weight=weight)
+async def log_weight(request: WeightLogRequest, user: User = Depends(require_auth)):
+    entry = WeightEntry(user_id=user.id, weight=request.weight)
     doc = entry.model_dump()
     doc['recorded_at'] = doc['recorded_at'].isoformat()
     
     await db.weight_logs.insert_one(doc)
-    await db.users.update_one({"id": user.id}, {"$set": {"weight": weight}})
+    await db.users.update_one({"id": user.id}, {"$set": {"weight": request.weight}})
     
     # Check weight loss achievements
     first_weight = await db.weight_logs.find_one(
@@ -903,7 +934,7 @@ async def log_weight(weight: float, user: User = Depends(require_auth)):
         sort=[("recorded_at", 1)]
     )
     if first_weight:
-        weight_lost = first_weight["weight"] - weight
+        weight_lost = first_weight["weight"] - request.weight
         if weight_lost >= 1:
             await check_and_award_achievements(user.id)
     
@@ -1042,6 +1073,16 @@ async def get_meal_suggestions(meal_type: str = "lunch", user: User = Depends(re
 # Include router
 app.include_router(api_router)
 
+@app.on_event("startup")
+async def startup_db_client():
+    # Create indexes for performance
+    await db.users.create_index("id", unique=True)
+    await db.users.create_index("email", unique=True)
+    await db.food_logs.create_index("id", unique=True)
+    await db.food_logs.create_index("user_id")
+    await db.food_logs.create_index("logged_at")
+    await db.weight_logs.create_index("user_id")
+    await db.weight_logs.create_index("recorded_at")
 
 @app.on_event("shutdown")
 async def shutdown_db_client():
